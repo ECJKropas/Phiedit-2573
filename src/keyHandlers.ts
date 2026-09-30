@@ -99,8 +99,22 @@ export default function getKeyHandler(e: KeyboardEvent, type: "keydown" | "keyup
         return keydownup;
     }
 
+    // stateManager 可能尚未初始化（应用启动、谱面/音频异步加载期间），
+    // 此时仅做按键追踪、不处理谱面快捷键，避免 useManager 抛错中断按键事件
+    const stateManager = (() => {
+        try {
+            return store.useManager("stateManager");
+        }
+        catch {
+            return null;
+        }
+    })();
+    if (!stateManager) {
+        return keydownup;
+    }
+
     // 伴随创作模式监听中：Q/W/E/R 直接放置对应类型 note，而非切换类型
-    if (type === "keydown" && store.useManager("stateManager")._state.accompanimentListening) {
+    if (type === "keydown" && stateManager._state.accompanimentListening) {
         const accompanimentTypeMap: Record<string, NoteType> = {
             Q: NoteType.Tap,
             W: NoteType.Drag,
@@ -117,7 +131,7 @@ export default function getKeyHandler(e: KeyboardEvent, type: "keydown" | "keyup
     }
 
     // 伴随创作模式激活时，ESC 随时退出（倒计时与监听阶段均生效，置于 autoplay 门控之前以保证可用）
-    if (key === "Esc" && store.useManager("stateManager")._state.accompanimentMode) {
+    if (key === "Esc" && stateManager._state.accompanimentMode) {
         return () => {
             globalEventEmitter.emit("ACCOMPANIMENT_STOP");
         };
@@ -128,8 +142,6 @@ export default function getKeyHandler(e: KeyboardEvent, type: "keydown" | "keyup
             e.preventDefault();
         }
     }
-
-    const stateManager = store.useManager("stateManager");
 
     if (!stateManager._state.autoplay) {
         return keydownup;
