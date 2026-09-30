@@ -116,6 +116,13 @@ export default function getKeyHandler(e: KeyboardEvent, type: "keydown" | "keyup
         }
     }
 
+    // 伴随创作模式激活时，ESC 随时退出（倒计时与监听阶段均生效，置于 autoplay 门控之前以保证可用）
+    if (key === "Esc" && store.useManager("stateManager")._state.accompanimentMode) {
+        return () => {
+            globalEventEmitter.emit("ACCOMPANIMENT_STOP");
+        };
+    }
+
     if (key.startsWith("Ctrl") || key.startsWith("Meta")) {
         if (key !== "Ctrl R" && key !== "Ctrl Shift I" && key !== "Meta R" && key !== "Meta Shift I") {
             e.preventDefault();
