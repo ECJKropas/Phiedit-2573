@@ -13,14 +13,17 @@ import store from "@/store";
 import Manager from "./abstract";
 import { createCatchErrorByMessage } from "@/tools/catchError";
 
-/** 倒计时秒数 */
+/** 倒计时秒数（与向前预热秒数一致） */
 const COUNTDOWN_SECONDS = 3;
 
 /** 开始播放时向前预热的秒数（从当前位置前三秒开始） */
 const LEAD_SECONDS = 3;
 
 export default class AccompanimentManager extends Manager {
-    private timer: number | null = null;
+    private rafId: number | null = null;
+
+    /** 点击开始时记录的「开始位置」（秒）：播放头到达此处才切到监听 */
+    private startPosition = 0;
 
     constructor() {
         super();
@@ -36,11 +39,11 @@ export default class AccompanimentManager extends Manager {
     }
 
     get enabled() {
-        return store.useManager("stateManager")._state.accompanimentMode;
+        return store.useManager("stateManager").state.accompanimentMode;
     }
 
     get listening() {
-        return store.useManager("stateManager")._state.accompanimentListening;
+        return store.useManager("stateManager").state.accompanimentListening;
     }
 
     toggle() {
@@ -55,38 +58,54 @@ export default class AccompanimentManager extends Manager {
     start() {
         const stateManager = store.useManager("stateManager");
 
-        // 从当前播放位置前三秒开始播放
-        const startSeconds = Math.max(0, store.getSeconds() - LEAD_SECONDS);
+        // 记录点击时的「开始位置」，播放头到达此处才切到监听
+        this.startPosition = store.getSeconds();
+
+        // 倒带前三秒开始播放音乐，但先不监听
+        const startSeconds = Math.max(0, this.startPosition - LEAD_SECONDS);
         store.setSeconds(startSeconds);
         store.playAudio();
 
-        stateManager._state.accompanimentMode = true;
-        stateManager._state.accompanimentListening = false;
-        this.beginCountdown();
+        // 通过响应式代理 state 写值，确保 Vue 模板（按钮/覆盖层）会更新
+        stateManager.state.accompanimentMode = true;
+        stateManager.state.accompanimentListening = false;
+        stateManager.state.accompanimentCountdown = COUNTDOWN_SECONDS;
+
+        this.beginWatch();
     }
 
-    private beginCountdown() {
-        const stateManager = store.useManager("stateManager");
-        let remaining = COUNTDOWN_SECONDS;
-        stateManager._state.accompanimentCountdown = remaining;
-        this.clearTimer();
-        this.timer = window.setInterval(() => {
-            remaining -= 1;
-            if (remaining <= 0) {
-                stateManager._state.accompanimentCountdown = null;
-                stateManager._state.accompanimentListening = true;
-                this.clearTimer();
+    /**
+     * 每帧检查播放头位置：距离开始位置还有多少秒就显示 3→2→1，
+     * 播放头恰好到达开始位置时切到监听。相比固定墙钟计时，能严格对齐音乐进度。
+     */
+    private beginWatch() {
+        this.clearRaf();
+        const tick = () => {
+            const stateManager = store.useManager("stateManager");
+            if (!stateManager.state.accompanimentMode) {
+                return;
+            }
+
+            const remaining = this.startPosition - store.getSeconds();
+            if (remaining > 0) {
+                stateManager.state.accompanimentCountdown =
+                    Math.min(COUNTDOWN_SECONDS, Math.max(1, Math.ceil(remaining)));
+                stateManager.state.accompanimentListening = false;
+                this.rafId = window.requestAnimationFrame(tick);
             }
             else {
-                stateManager._state.accompanimentCountdown = remaining;
+                stateManager.state.accompanimentCountdown = null;
+                stateManager.state.accompanimentListening = true;
+                this.clearRaf();
             }
-        }, 1000);
+        };
+        this.rafId = window.requestAnimationFrame(tick);
     }
 
-    private clearTimer() {
-        if (this.timer !== null) {
-            window.clearInterval(this.timer);
-            this.timer = null;
+    private clearRaf() {
+        if (this.rafId !== null) {
+            window.cancelAnimationFrame(this.rafId);
+            this.rafId = null;
         }
     }
 
@@ -95,14 +114,14 @@ export default class AccompanimentManager extends Manager {
         const stateManager = store.useManager("stateManager");
         const intPart = Math.floor(beatsValue);
         const decimal = beatsValue - intPart;
-        const fenzi = Math.round(decimal * stateManager._state.horizonalLineCount);
-        const fenmu = stateManager._state.horizonalLineCount;
+        const fenzi = Math.round(decimal * stateManager.state.horizonalLineCount);
+        const fenmu = stateManager.state.horizonalLineCount;
         return [intPart, fenzi, fenmu];
     }
 
     placeNote(type: NoteType) {
         const stateManager = store.useManager("stateManager");
-        if (!stateManager._state.accompanimentMode || !stateManager._state.accompanimentListening) {
+        if (!stateManager.state.accompanimentMode || !stateManager.state.accompanimentListening) {
             return;
         }
 
@@ -136,10 +155,12 @@ export default class AccompanimentManager extends Manager {
 
     stop() {
         const stateManager = store.useManager("stateManager");
-        this.clearTimer();
-        stateManager._state.accompanimentMode = false;
-        stateManager._state.accompanimentListening = false;
-        stateManager._state.accompanimentCountdown = null;
+        this.clearRaf();
+
+        // 通过响应式代理 state 写值
+        stateManager.state.accompanimentMode = false;
+        stateManager.state.accompanimentListening = false;
+        stateManager.state.accompanimentCountdown = null;
         store.pauseAudio();
     }
 }
