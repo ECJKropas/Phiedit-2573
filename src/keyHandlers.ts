@@ -99,6 +99,23 @@ export default function getKeyHandler(e: KeyboardEvent, type: "keydown" | "keyup
         return keydownup;
     }
 
+    // 伴随创作模式监听中：Q/W/E/R 直接放置对应类型 note，而非切换类型
+    if (type === "keydown" && store.useManager("stateManager")._state.accompanimentListening) {
+        const accompanimentTypeMap: Record<string, NoteType> = {
+            Q: NoteType.Tap,
+            W: NoteType.Drag,
+            E: NoteType.Flick,
+            R: NoteType.Hold,
+        };
+        if (key in accompanimentTypeMap) {
+            const noteType = accompanimentTypeMap[key];
+            return () => {
+                keydownup();
+                globalEventEmitter.emit("ACCOMPANIMENT_PLACE", noteType);
+            };
+        }
+    }
+
     if (key.startsWith("Ctrl") || key.startsWith("Meta")) {
         if (key !== "Ctrl R" && key !== "Ctrl Shift I" && key !== "Meta R" && key !== "Meta Shift I") {
             e.preventDefault();

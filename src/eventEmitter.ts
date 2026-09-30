@@ -112,6 +112,9 @@ export interface GlobalEventMap {
     JUDGE_LINE_COUNT_CHANGED: [number]
     SETTINGS_LOADED: []
     VIDEO_RENDERING_PROGRESS: [VideoRenderingProgress]
+    ACCOMPANIMENT_TOGGLE: []
+    ACCOMPANIMENT_STOP: []
+    ACCOMPANIMENT_PLACE: [NoteType]
 }
 
 class GlobalEventEmitter extends EventEmitter<GlobalEventMap> {
