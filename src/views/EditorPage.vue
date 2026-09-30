@@ -417,6 +417,20 @@
                     >
                         试玩
                     </MyButton>
+                    <MyButton
+                        v-if="!stateManager.state.accompanimentMode"
+                        type="success"
+                        @click="globalEventEmitter.emit('ACCOMPANIMENT_TOGGLE')"
+                    >
+                        伴随创作
+                    </MyButton>
+                    <MyButton
+                        v-else
+                        type="danger"
+                        @click="globalEventEmitter.emit('ACCOMPANIMENT_STOP')"
+                    >
+                        停止伴随创作
+                    </MyButton>
                 </div>
                 <div class="flex-container">
                     <MyButton
@@ -473,6 +487,24 @@
                 :width="1350"
                 :height="900"
             />
+            <div
+                v-if="stateManager.state.accompanimentCountdown !== null || stateManager.state.accompanimentListening"
+                class="accompaniment-overlay"
+            >
+                <div
+                    v-if="stateManager.state.accompanimentCountdown !== null"
+                    class="accompaniment-countdown"
+                >
+                    {{ stateManager.state.accompanimentCountdown }}
+                </div>
+                <div
+                    v-else
+                    class="accompaniment-listening"
+                >
+                    <span class="accompaniment-dot" />
+                    监听中 · 按 Q / W / E / R 放置 Tap / Drag / Flick / Hold
+                </div>
+            </div>
         </ElMain>
         <ElAside
             id="right"
@@ -1597,6 +1629,8 @@ onMounted(() => {
 #main {
     grid-area: main;
     --el-main-padding: 0;
+    position: relative;
+    overflow: hidden;
 }
 
 .el-aside {
@@ -1650,6 +1684,66 @@ onMounted(() => {
     display: block;
     width: 100%;
     height: 100%;
+}
+
+.accompaniment-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.accompaniment-countdown {
+    font-size: 160px;
+    font-weight: 800;
+    color: #ffffff;
+    text-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
+    animation: accompaniment-pop 1s ease;
+}
+
+.accompaniment-listening {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 22px;
+    font-weight: 700;
+    color: #ffffff;
+    background: rgba(0, 0, 0, 0.45);
+    padding: 10px 22px;
+    border-radius: 999px;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+
+.accompaniment-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #67c23a;
+    box-shadow: 0 0 12px #67c23a;
+    animation: accompaniment-blink 1s infinite;
+}
+
+@keyframes accompaniment-pop {
+    from {
+        transform: scale(1.6);
+        opacity: 0.2;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes accompaniment-blink {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.3;
+    }
 }
 
 .el-button-group,
