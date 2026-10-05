@@ -2006,9 +2006,10 @@ onMounted(() => {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
+    gap: clamp(48px, 8vh, 104px);
     box-sizing: border-box;
-    padding: 14vh 6vw 12vh;
+    padding: 12vh 6vw;
     overflow: hidden;
 }
 
@@ -2037,41 +2038,42 @@ onMounted(() => {
 /* 斜的紫色彩条，下移到数字的下半部分 */
 .calibration-ribbon {
     position: relative;
-    width: min(46vw, 480px);
-    height: clamp(72px, 9vh, 120px);
-    transform: translateY(clamp(34px, 5vw, 72px));
+    width: min(23vw, 196px);
+    height: clamp(46px, 5.8vh, 72px);
+    transform: translateY(clamp(12px, 1.4vw, 22px));
 }
 
 .calibration-ribbon-bar {
     position: absolute;
-    inset: 0 -7%;
-    border-radius: 6px;
+    inset: 0;
+    border-radius: 4px;
     transform: skewX(-20deg);
     background: linear-gradient(100deg,
-        rgba(167, 139, 250, 0.26) 0%,
-        rgba(139, 92, 246, 0.46) 48%,
-        rgba(196, 181, 253, 0.24) 100%);
+        rgba(167, 139, 250, 0.28) 0%,
+        rgba(139, 92, 246, 0.5) 48%,
+        rgba(196, 181, 253, 0.26) 100%);
 }
 
-/* 左右两条飘带：尺寸与纵向位置完全一致，只分居彩条两端 */
+/* 左右两条飘带：与彩条同角度倾斜，尺寸一致，只分居两端 */
 .calibration-ribbon-tie {
     position: absolute;
-    top: -20%;
-    height: 140%;
-    width: 14px;
-    border-radius: 4px;
+    top: -12%;
+    height: 124%;
+    width: 11px;
+    border-radius: 3px;
+    transform: skewX(-20deg);
 }
 
 .calibration-ribbon-tie-left {
     left: 0;
     background: linear-gradient(180deg, #c4b5fd, #8b5cf6);
-    box-shadow: 0 0 24px rgba(139, 92, 246, 0.7);
+    box-shadow: 0 0 16px rgba(139, 92, 246, 0.6);
 }
 
 .calibration-ribbon-tie-right {
     right: 0;
     background: linear-gradient(180deg, #8b5cf6, #c4b5fd);
-    box-shadow: 0 0 24px rgba(139, 92, 246, 0.7);
+    box-shadow: 0 0 16px rgba(139, 92, 246, 0.6);
 }
 
 .calibration-result-value,
@@ -2086,14 +2088,14 @@ onMounted(() => {
 }
 
 .calibration-result-value {
-    font-size: clamp(140px, 22vw, 300px);
+    font-size: clamp(68px, 8vw, 104px);
     font-weight: 800;
     letter-spacing: -0.05em;
     font-variant-numeric: tabular-nums;
 }
 
 .calibration-result-empty {
-    font-size: clamp(48px, 7vw, 96px);
+    font-size: clamp(30px, 3.6vw, 48px);
     font-weight: 700;
     color: rgba(23, 23, 26, 0.35);
 }
@@ -2102,12 +2104,12 @@ onMounted(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: clamp(90px, 20vw, 300px);
+    gap: clamp(64px, 12vw, 156px);
 }
 
 .calibration-action {
-    width: 88px;
-    height: 88px;
+    width: clamp(42px, 4.4vw, 56px);
+    height: clamp(42px, 4.4vw, 56px);
     padding: 0;
     border: none;
     background: transparent;
