@@ -37,7 +37,7 @@ const keyConfigs = {
         keyup: "STOP_PREVIEW"
     },
 
-    // Ctrl
+    // Ctrl（Windows/Linux；Mac 下 Ctrl 同样可用，作 ⌘ 的兼容兜底）
     "Ctrl B": "PASTE_MIRROR",
     "Ctrl S": "SAVE",
     "Ctrl A": "SELECT_ALL",
@@ -50,8 +50,10 @@ const keyConfigs = {
     "Ctrl Shift V": "REPEAT",
     "Ctrl Z": "UNDO",
     "Ctrl Y": "REDO",
+    "Ctrl D": "DISABLE",
+    "Ctrl E": "ENABLE",
 
-    // Meta（macOS Command 键）
+    // Meta（macOS Command 键）—— 与上面的 Ctrl 组合一一对应，便于 Mac 用户用 ⌘ 替代 Ctrl
     "Meta Z": "UNDO",
     "Meta Y": "REDO",
     "Meta Shift Z": "REDO",
@@ -60,8 +62,13 @@ const keyConfigs = {
     "Meta V": "PASTE",
     "Meta X": "CUT",
     "Meta S": "SAVE",
-    "Ctrl D": "DISABLE",
-    "Ctrl E": "ENABLE",
+    "Meta B": "PASTE_MIRROR",
+    "Meta M": "MOVE_TO_JUDGE_LINE",
+    "Meta [": "MOVE_TO_PREVIOUS_JUDGE_LINE",
+    "Meta ]": "MOVE_TO_NEXT_JUDGE_LINE",
+    "Meta Shift V": "REPEAT",
+    "Meta D": "DISABLE",
+    "Meta E": "ENABLE",
 
     // Alt
     "Alt A": "REVERSE",
