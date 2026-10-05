@@ -137,11 +137,15 @@ export default function getKeyHandler(e: KeyboardEvent, type: "keydown" | "keyup
         }
     }
 
-    // 伴随创作模式激活时，ESC 随时退出（倒计时与监听阶段均生效，置于 autoplay 门控之前以保证可用）
+    // 伴随创作模式激活时，ESC 随时退出（仅 keydown 触发，避免一次按键在 keyup 再发一次 STOP；
+    // 倒计时与监听阶段均生效，置于 autoplay 门控之前以保证可用）
     if (key === "Esc" && stateManager._state.accompanimentMode) {
-        return () => {
-            globalEventEmitter.emit("ACCOMPANIMENT_STOP");
-        };
+        if (type === "keydown") {
+            return () => {
+                globalEventEmitter.emit("ACCOMPANIMENT_STOP");
+            };
+        }
+        return keydownup;
     }
 
     if (key.startsWith("Ctrl") || key.startsWith("Meta")) {

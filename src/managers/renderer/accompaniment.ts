@@ -8,7 +8,7 @@
 
 import globalEventEmitter from "@/eventEmitter";
 import { NoteType, NoteFake, NoteAbove } from "@/models/note";
-import { Beats } from "@/models/beats";
+import { Beats, addBeats } from "@/models/beats";
 import store from "@/store";
 import Manager from "./abstract";
 import { createCatchErrorByMessage } from "@/tools/catchError";
@@ -136,9 +136,15 @@ export default class AccompanimentManager extends Manager {
             coordinateManager.attatchX(mouseManager.mouseX) :
             0;
 
+        // Hold 音符若 endTime 与 startTime 相同则时长为 0，会被判定逻辑当作点击即完成、失去长按体；
+        // 因此给 Hold 一个默认 1 拍的正时长，其余类型 endTime 保持与 startTime 一致
+        const endTimeBeats = type === NoteType.Hold ?
+            addBeats(snappedBeats, [1, 0, 1]) :
+            snappedBeats;
+
         const addedNote = store.addNote({
             startTime: [...snappedBeats],
-            endTime: [...snappedBeats],
+            endTime: [...endTimeBeats],
             positionX,
             type,
             speed: 1,
