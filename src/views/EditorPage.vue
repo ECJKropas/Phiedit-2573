@@ -493,7 +493,7 @@
                 :height="900"
             />
             <div
-                v-if="isCalibration"
+                v-if="isCalibration && !calibrationResult"
                 style="position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 3000; background: rgba(20, 22, 30, 0.78); color: #fff; padding: 14px 22px; border-radius: 12px; font-size: 15px; line-height: 1.7; text-align: center; pointer-events: none; backdrop-filter: blur(6px); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);"
             >
                 <div style="font-size: 17px; font-weight: 600;">
@@ -504,7 +504,49 @@
                 </div>
                 <div>有效样本：{{ calibrationState.validCount }} / {{ calibrationState.pressCount }} 次按键</div>
                 <div style="opacity: 0.75; font-size: 13px;">
-                    误差判定只依据鼓点真值 · 按 ESC 退出并保存
+                    误差判定只依据鼓点真值 · 按 ESC 结束采样
+                </div>
+            </div>
+            <div
+                v-if="isCalibration && calibrationResult"
+                class="calibration-result"
+            >
+                <div class="calibration-result-top">
+                    <div class="calibration-result-label">
+                        offset
+                    </div>
+                    <div
+                        v-if="calibrationResult.offsetMs !== null"
+                        class="calibration-result-value"
+                    >
+                        {{ calibrationResult.offsetMs }}<span class="calibration-result-unit">ms</span>
+                    </div>
+                    <div
+                        v-else
+                        class="calibration-result-empty"
+                    >
+                        未采到有效样本
+                    </div>
+                    <div class="calibration-result-sub">
+                        有效样本 {{ calibrationResult.validCount }} / {{ calibrationResult.pressCount }} 次按键
+                    </div>
+                </div>
+                <div class="calibration-result-actions">
+                    <button
+                        class="calibration-action calibration-action-discard"
+                        title="放弃这次测出的 offset，不计入设置"
+                        @click="discardCalibration"
+                    >
+                        ✕
+                    </button>
+                    <button
+                        class="calibration-action calibration-action-confirm"
+                        :disabled="calibrationResult.offsetMs === null"
+                        title="记录这次测出的 offset"
+                        @click="confirmCalibration"
+                    >
+                        ✓
+                    </button>
                 </div>
             </div>
             <div
@@ -861,15 +903,48 @@ function tryDevAltCombo() {
     return false;
 }
 
-function finishCalibration() {
-    calibrationManager.saveIfEnough();
+/** 校准结果确认界面：歌曲放完或按 ESC 后进入，把「记录 / 放弃」的决定权交给用户 */
+const calibrationResult = ref<{
+    offsetMs: number | null;
+    validCount: number;
+    pressCount: number;
+} | null>(null);
+
+/** 进入结果确认界面：停止采样与播放，冻结当前统计 */
+function enterCalibrationResult() {
+    if (calibrationResult.value) return;
     calibrationManager.onExit();
+    audioRef.value?.pause();
+    calibrationResult.value = {
+        offsetMs: calibrationState.offsetMs,
+        validCount: calibrationState.validCount,
+        pressCount: calibrationState.pressCount,
+    };
+}
+
+/** 音频播放结束时同样进入结果界面，而不是静静停住 */
+function onCalibrationAudioEnded() {
+    enterCalibrationResult();
+}
+
+/** ✓：记录这次测出的 offset（写入全局设置）后回首页；无有效样本时不动作 */
+function confirmCalibration() {
+    if (!calibrationResult.value || calibrationResult.value.offsetMs === null) return;
+    calibrationManager.saveIfEnough();
+    router.push("/");
+}
+
+/** ✕：放弃这次测出的 offset，不写入设置，直接回首页 */
+function discardCalibration() {
     router.push("/");
 }
 
 function calibrationKeyDown(e: KeyboardEvent) {
+    // 结果确认界面：不再采样，也不响应 ESC，是否记录由 ✕ / ✓ 决定
+    if (calibrationResult.value) return;
+
     if (e.key === "Escape") {
-        finishCalibration();
+        enterCalibrationResult();
         return;
     }
 
@@ -921,9 +996,18 @@ if (isCalibration.value) {
         else {
             audio.addEventListener("canplay", tryPlay, { once: true });
         }
+
+        // 歌曲放完 → 进入结果确认界面（否则画面会静静停住、像是卡死）
+        audio.addEventListener("ended", onCalibrationAudioEnded);
     });
     onBeforeUnmount(() => {
         window.removeEventListener("keydown", calibrationKeyDown);
+        try {
+            store.useAudio().removeEventListener("ended", onCalibrationAudioEnded);
+        }
+        catch {
+            // 音频已不可用，忽略
+        }
         calibrationManager.onExit();
     });
 }
@@ -1883,6 +1967,158 @@ onMounted(() => {
     }
     50% {
         opacity: 0.3;
+    }
+}
+
+/* ---- 校准结果确认界面 ---- */
+
+.calibration-result {
+    position: fixed;
+    inset: 0;
+    z-index: 2500;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    box-sizing: border-box;
+    padding: 7vh 6vw 9vh;
+    overflow: hidden;
+}
+
+/* 中间显示区域「慢慢变白」：白色幕布从透明渐入 */
+.calibration-result::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: #ffffff;
+    animation: calibration-fade-to-white 1.6s ease-out forwards;
+}
+
+.calibration-result > * {
+    position: relative;
+    animation: calibration-result-rise 0.55s ease-out 0.65s both;
+}
+
+.calibration-result-top {
+    text-align: center;
+    color: #1f1f1f;
+}
+
+.calibration-result-label {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: 0.4em;
+    text-indent: 0.4em;
+    color: #9a9a9a;
+}
+
+.calibration-result-value {
+    font-size: clamp(96px, 17vw, 240px);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+}
+
+.calibration-result-unit {
+    font-size: 0.3em;
+    font-weight: 600;
+    letter-spacing: 0;
+    color: #9a9a9a;
+    margin-left: 0.12em;
+}
+
+.calibration-result-empty {
+    font-size: 44px;
+    font-weight: 700;
+    color: #c0c4cc;
+    line-height: 2.2;
+}
+
+.calibration-result-sub {
+    margin-top: 8px;
+    font-size: 18px;
+    color: #9a9a9a;
+}
+
+.calibration-result-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14vw;
+}
+
+.calibration-action {
+    width: 104px;
+    height: 104px;
+    border: none;
+    border-radius: 50%;
+    font-size: 46px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.calibration-action:hover {
+    transform: scale(1.08);
+}
+
+.calibration-action:active {
+    transform: scale(0.95);
+}
+
+.calibration-action-discard {
+    background: #f2f3f5;
+    color: #909399;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.calibration-action-discard:hover {
+    background: #fdecec;
+    color: #f56c6c;
+}
+
+.calibration-action-confirm {
+    background: #67c23a;
+    color: #ffffff;
+    box-shadow: 0 8px 24px rgba(103, 194, 58, 0.4);
+}
+
+.calibration-action-confirm:hover {
+    background: #71d244;
+}
+
+.calibration-action-confirm:disabled {
+    background: #e4e7ed;
+    color: #c0c4cc;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.calibration-action-confirm:disabled:hover {
+    transform: none;
+}
+
+@keyframes calibration-fade-to-white {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes calibration-result-rise {
+    from {
+        opacity: 0;
+        transform: translateY(24px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
 }
 
