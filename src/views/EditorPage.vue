@@ -2057,8 +2057,8 @@ onMounted(() => {
 /* 左右两条飘带：与彩条同角度倾斜，尺寸一致，只分居两端 */
 .calibration-ribbon-tie {
     position: absolute;
-    top: -12%;
-    height: 124%;
+    top: 0%;
+    height: 100%;
     width: 11px;
     border-radius: 3px;
     transform: skewX(-20deg);
@@ -2092,6 +2092,7 @@ onMounted(() => {
     font-weight: 800;
     letter-spacing: -0.05em;
     font-variant-numeric: tabular-nums;
+    transform: translateY(-20px);
 }
 
 .calibration-result-empty {
