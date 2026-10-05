@@ -3,16 +3,20 @@
 
 <template>
     <ElContainer>
-        <ElHeader id="header">
+        <!-- audio 元素放在 header 之外，保证校准模式（header 隐藏）下音频依然挂载、可播放、可读 currentTime -->
+        <audio
+            ref="audioRef"
+            :src="store.chartPackageRef.value?.musicSrc"
+        />
+        <ElHeader
+            v-if="!isCalibration"
+            id="header"
+        >
             <ElScrollbar
                 id="header-inner"
                 @wheel.passive.stop
             >
                 <div class="audio-player">
-                    <audio
-                        ref="audioRef"
-                        :src="store.chartPackageRef.value?.musicSrc"
-                    />
                     <template v-if="audioRef">
                         <ElIcon
                             class="play-icon"
@@ -190,6 +194,7 @@
             </ElScrollbar>
         </ElHeader>
         <ElAside
+            v-if="!isCalibration"
             id="left"
             @wheel.passive.stop
         >
@@ -488,6 +493,21 @@
                 :height="900"
             />
             <div
+                v-if="isCalibration"
+                style="position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 3000; background: rgba(20, 22, 30, 0.78); color: #fff; padding: 14px 22px; border-radius: 12px; font-size: 15px; line-height: 1.7; text-align: center; pointer-events: none; backdrop-filter: blur(6px); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);"
+            >
+                <div style="font-size: 17px; font-weight: 600;">
+                    🎯 跟着鼓点按下任意键
+                </div>
+                <div>
+                    实时 offset：<b>{{ calibrationState.offsetMs === null ? "采样中…" : calibrationState.offsetMs + " ms" }}</b>
+                </div>
+                <div>有效样本：{{ calibrationState.validCount }} / {{ calibrationState.pressCount }} 次按键</div>
+                <div style="opacity: 0.75; font-size: 13px;">
+                    误差判定只依据鼓点真值 · 按 ESC 退出并保存
+                </div>
+            </div>
+            <div
                 v-if="stateManager.state.accompanimentCountdown !== null || stateManager.state.accompanimentListening"
                 class="accompaniment-overlay"
             >
@@ -507,6 +527,7 @@
             </div>
         </ElMain>
         <ElAside
+            v-if="!isCalibration"
             id="right"
             @wheel.passive.stop
         >
@@ -748,6 +769,8 @@ import globalEventEmitter, { VideoRenderingProgress } from "@/eventEmitter";
 import store, { managersMap } from "@/store";
 import { RightPanelState } from "@/managers/renderer/state";
 import getKeyHandler from "@/keyHandlers";
+import CalibrationManager, { calibrationState } from "@/managers/renderer/calibration";
+import { CALIBRATION_CHART_ID } from "@/data/calibrationOnsets";
 
 const loadStart = inject("loadStart", () => {
     throw new Error("loadStart is not defined");
@@ -772,6 +795,11 @@ const resourcePackageLoader = store.useGlobalManager("resourcePackageLoader");
 loadStart();
 
 const chartId = store.getChartId();
+
+// 校准模式：由首页“延迟检测”入口以 ?calibration=1 打开，用 autoplay 做纯视觉引导，
+// 误差判定只依赖 Python 提取的 onset 数据（谱面本身不参与计算）。
+const isCalibration = ref(store.route.query.calibration === "1");
+const calibrationManager = new CalibrationManager();
 
 // 使用 chartPackageLoader 加载 chartPackage
 const readResult = await window.electronAPI.loadChart(chartId);
@@ -798,6 +826,107 @@ const selectionManager = store.useManager("selectionManager");
 const mouseManager = store.useManager("mouseManager");
 const coordinateManager = store.useManager("coordinateManager");
 const judgeManager = store.useManager("judgeManager");
+
+// ---- 延迟校准模式 ----
+const CALIBRATION_IGNORED_KEYS = ["Shift", "Control", "Alt", "Meta", "CapsLock", "Tab", "Escape"];
+
+// dev 后门：校准检测界面里连按 5 次 Alt（超时窗口内）进入该隐藏谱面的“普通编辑”模式，方便手动调整谱面
+const IS_DEV = process.env.NODE_ENV !== "production";
+const DEV_ALT_TRIGGER_COUNT = 5;
+const DEV_ALT_RESET_MS = 800;
+let altPressCount = 0;
+let altResetTimer: number | undefined;
+function tryDevAltCombo() {
+    if (!IS_DEV) {
+        return false;
+    }
+    altPressCount++;
+    if (altResetTimer !== undefined) window.clearTimeout(altResetTimer);
+
+    // 连按需在超时窗口内完成，超时则重新计数
+    altResetTimer = window.setTimeout(() => {
+        altPressCount = 0;
+    }, DEV_ALT_RESET_MS);
+    if (altPressCount >= DEV_ALT_TRIGGER_COUNT) {
+        altPressCount = 0;
+        if (altResetTimer !== undefined) window.clearTimeout(altResetTimer);
+
+        // 用整页重载切到普通编辑模式：同路由仅 query 变化不会重挂组件，
+        // 而 store 是单例、旧 EditorPage 的 onBeforeUnmount 会清空 store，
+        // 因此这里必须整页重载，让编辑模式从干净状态重新加载谱面。
+        window.location.hash = `#/editor?chartId=${encodeURIComponent(CALIBRATION_CHART_ID)}`;
+        window.location.reload();
+        return true;
+    }
+    return false;
+}
+
+function finishCalibration() {
+    calibrationManager.saveIfEnough();
+    calibrationManager.onExit();
+    router.push("/");
+}
+
+function calibrationKeyDown(e: KeyboardEvent) {
+    if (e.key === "Escape") {
+        finishCalibration();
+        return;
+    }
+
+    // dev 后门：连按 5 次 Alt 进入编辑模式（不计入校准采样）
+    if (e.key === "Alt" && tryDevAltCombo()) {
+        return;
+    }
+
+    if (CALIBRATION_IGNORED_KEYS.includes(e.key)) return;
+
+    // 音频元素理论上已挂载（模板里已移出 header），此处仍做防御性判空
+    const audio = audioRef.value;
+    if (!audio) return;
+
+    // 若音乐尚未播放（如自动播放被拦截），用这次按键启动音乐，这一次不计入样本
+    if (audio.paused) {
+        audio.play().catch(() => {
+            // 忽略：仍处于暂停，用户可继续按键重试
+        });
+        return;
+    }
+    calibrationManager.onKeyPress();
+}
+
+if (isCalibration.value) {
+    // autoplay=true → 渲染循环发 AUTOPLAY：音符自动击打，纯视觉、不做判定
+    // isPreviewing=true → 渲染循环走 RENDER_CHART：游戏视图（编辑 UI 由模板 v-if 隐藏）
+    stateManager.state.autoplay = true;
+    stateManager.state.isPreviewing = true;
+    calibrationManager.onStart();
+    onMounted(() => {
+        window.addEventListener("keydown", calibrationKeyDown);
+
+        // 等音频真正 canplay 后再播，避免刚挂载就 play() 触发 autoplay 拦截/未加载。
+        // 若被拦截，calibrationKeyDown 里检测到 paused 会在用户首次按键时兜底启动。
+        const audio = store.useAudio();
+        const tryPlay = () => {
+            if (audio.readyState === HTMLMediaElement.HAVE_NOTHING) {
+                return;
+            }
+            audio.play().catch((error) => {
+                console.warn("校准模式自动播放被拦截，等待用户按键启动：", error);
+            });
+        };
+
+        if (audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+            tryPlay();
+        }
+        else {
+            audio.addEventListener("canplay", tryPlay, { once: true });
+        }
+    });
+    onBeforeUnmount(() => {
+        window.removeEventListener("keydown", calibrationKeyDown);
+        calibrationManager.onExit();
+    });
+}
 
 const fps = ref(0);
 const time = ref(0);
@@ -1331,11 +1460,22 @@ async function windowOnKeyDown(e: KeyboardEvent) {
         return;
     }
 
+    // 校准模式下禁用全部编辑器快捷键（T/U 预览、I 切换预览、QWER 改类型、A/D 切判定线、
+    // Del 删除、方向键移动、Ctrl/Meta 组合等），按键只交给 calibrationKeyDown 做延迟采样
+    if (isCalibration.value) {
+        return;
+    }
+
     const handler = getKeyHandler(e, "keydown");
     handler();
 }
 
 async function windowOnKeyUp(e: KeyboardEvent) {
+    // 校准模式下同样屏蔽，避免 PREVIEW 等 keyup 状态被解除触发
+    if (isCalibration.value) {
+        return;
+    }
+
     const handler = getKeyHandler(e, "keyup");
     handler();
 }

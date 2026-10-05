@@ -51,6 +51,13 @@
         >
             导入谱面（仅支持RPE格式，不支持官方谱面格式）
         </MyButton>
+
+        <MyButton
+            type="warning"
+            @click="catchErrorByMessage(startCalibration, '延迟检测')"
+        >
+            延迟检测
+        </MyButton>
     </MyGridContainer>
     <ElMenu
         mode="horizontal"
@@ -168,6 +175,7 @@ import MediaUtils from "@/tools/mediaUtils";
 import MyDialog from "@/myElements/MyDialog.vue";
 import { catchErrorByMessage, confirm } from "@/tools/catchError";
 import MyGridContainer from "@/myElements/MyGridContainer.vue";
+import { CALIBRATION_CHART_ID } from "@/data/calibrationOnsets";
 
 const router = useRouter();
 const musicFileUrl = ref<string | undefined>();
@@ -238,6 +246,11 @@ async function loadChart() {
     const chartId = await window.electronAPI.importChart(filePath);
     const encodedId = encodeURIComponent(chartId);
     router.push(`/editor?chartId=${encodedId}`);
+}
+
+// ---- 延迟检测入口：打开隐藏校准谱面，走 calibration 模式 ----
+function startCalibration() {
+    router.push(`/editor?chartId=${encodeURIComponent(CALIBRATION_CHART_ID)}&calibration=1`);
 }
 
 async function addChart() {
