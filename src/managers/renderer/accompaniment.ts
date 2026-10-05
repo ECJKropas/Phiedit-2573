@@ -7,8 +7,8 @@
 /* eslint-disable no-magic-numbers */
 
 import globalEventEmitter from "@/eventEmitter";
-import { NoteType, NoteFake, NoteAbove } from "@/models/note";
-import { Beats, addBeats } from "@/models/beats";
+import { NoteType, NoteFake, NoteAbove, INote } from "@/models/note";
+import { Beats, addBeats, isGreaterThanBeats } from "@/models/beats";
 import store from "@/store";
 import Manager from "./abstract";
 import { createCatchErrorByMessage } from "@/tools/catchError";
@@ -25,6 +25,9 @@ export default class AccompanimentManager extends Manager {
     /** 点击开始时记录的「开始位置」（秒）：播放头到达此处才切到监听 */
     private startPosition = 0;
 
+    /** 进行中的长按音符（Hold）：key(按键) → 已按下但未抬起的 note，抬起时回填 endTime */
+    private activeHolds: Map<string, INote> = new Map();
+
     constructor() {
         super();
         globalEventEmitter.on("ACCOMPANIMENT_TOGGLE", createCatchErrorByMessage(() => {
@@ -33,9 +36,12 @@ export default class AccompanimentManager extends Manager {
         globalEventEmitter.on("ACCOMPANIMENT_STOP", createCatchErrorByMessage(() => {
             this.stop();
         }, "停止伴随创作"));
-        globalEventEmitter.on("ACCOMPANIMENT_PLACE", createCatchErrorByMessage((type: NoteType) => {
-            this.placeNote(type);
+        globalEventEmitter.on("ACCOMPANIMENT_PLACE", createCatchErrorByMessage((type: NoteType, key: string) => {
+            this.placeNote(type, key);
         }, "伴随创作放置音符"));
+        globalEventEmitter.on("ACCOMPANIMENT_END_HOLD", createCatchErrorByMessage((key: string) => {
+            this.endHold(key);
+        }, "伴随创作结束长按"));
     }
 
     get enabled() {
@@ -119,7 +125,7 @@ export default class AccompanimentManager extends Manager {
         return [intPart, fenzi, fenmu];
     }
 
-    placeNote(type: NoteType) {
+    placeNote(type: NoteType, key: string) {
         const stateManager = store.useManager("stateManager");
         if (!stateManager.state.accompanimentMode || !stateManager.state.accompanimentListening) {
             return;
@@ -136,15 +142,37 @@ export default class AccompanimentManager extends Manager {
             coordinateManager.attatchX(mouseManager.mouseX) :
             0;
 
-        // Hold 音符若 endTime 与 startTime 相同则时长为 0，会被判定逻辑当作点击即完成、失去长按体；
-        // 因此给 Hold 一个默认 1 拍的正时长，其余类型 endTime 保持与 startTime 一致
-        const endTimeBeats = type === NoteType.Hold ?
-            addBeats(snappedBeats, [1, 0, 1]) :
-            snappedBeats;
+        // Hold 类型：按下键作为「开始」，先建一个端点重合的占位音符，
+        // 待抬起键（ACCOMPANIMENT_END_HOLD）时再回填 endTime。
+        // 同一按键按住期间的系统自动重复 keydown 直接忽略，避免叠出多个长按。
+        if (type === NoteType.Hold) {
+            if (this.activeHolds.has(key)) {
+                return;
+            }
 
+            const addedNote = store.addNote({
+                startTime: [...snappedBeats],
+                endTime: [...snappedBeats],
+                positionX,
+                type,
+                speed: 1,
+                alpha: 255,
+                size: 1,
+                visibleTime: 999999,
+                yOffset: 0,
+                isFake: NoteFake.Real,
+                above: NoteAbove.Above,
+                judgeArea: 1,
+            }, stateManager.state.currentJudgeLineNumber);
+            this.activeHolds.set(key, addedNote);
+            historyManager.recordAddNote(addedNote.id);
+            return;
+        }
+
+        // 其余类型：按下即放置，endTime 与 startTime 一致（瞬时音符）
         const addedNote = store.addNote({
             startTime: [...snappedBeats],
-            endTime: [...endTimeBeats],
+            endTime: [...snappedBeats],
             positionX,
             type,
             speed: 1,
@@ -159,9 +187,40 @@ export default class AccompanimentManager extends Manager {
         historyManager.recordAddNote(addedNote.id);
     }
 
+    /**
+     * 抬起键时结束对应的长按音符：以当前播放位置（吸附格点）作为 endTime。
+     * 若抬起过早（endTime 不晚于 startTime），则兜底给一个最小格点长度，避免退化成 0 长音符。
+     * 仅对 Hold 类型有意义；其余类型按键无进行中的长按，自然被忽略。
+     */
+    endHold(key: string) {
+        const stateManager = store.useManager("stateManager");
+        const note = this.activeHolds.get(key);
+        if (!note) {
+            return;
+        }
+        this.activeHolds.delete(key);
+
+        // 已退出监听（如中途 ESC）：不再回填，交由 stop() 收尾
+        if (!stateManager.state.accompanimentListening) {
+            return;
+        }
+
+        const snappedEnd = this.snapBeatsToGrid(store.getCurrentBeatsValue());
+        const fenmu = stateManager.state.horizonalLineCount;
+        const endTime = isGreaterThanBeats(snappedEnd, note.startTime as Beats) ?
+            snappedEnd :
+            addBeats(note.startTime as Beats, [0, 1, fenmu]);
+        note.endTime = [...endTime];
+    }
+
     stop() {
         const stateManager = store.useManager("stateManager");
         this.clearRaf();
+
+        // 收尾：若仍有按住未抬起的长按（如中途 ESC 退出），按当前播放位置结束之，避免残留 0 长音符
+        for (const key of [...this.activeHolds.keys()]) {
+            this.endHold(key);
+        }
 
         // 通过响应式代理 state 写值
         stateManager.state.accompanimentMode = false;

@@ -114,7 +114,8 @@ export interface GlobalEventMap {
     VIDEO_RENDERING_PROGRESS: [VideoRenderingProgress]
     ACCOMPANIMENT_TOGGLE: []
     ACCOMPANIMENT_STOP: []
-    ACCOMPANIMENT_PLACE: [NoteType]
+    ACCOMPANIMENT_PLACE: [NoteType, string]
+    ACCOMPANIMENT_END_HOLD: [string]
 }
 
 class GlobalEventEmitter extends EventEmitter<GlobalEventMap> {
