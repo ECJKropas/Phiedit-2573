@@ -9,6 +9,14 @@
         <em class="version">
             当前版本：{{ version }}
         </em>
+        <MyButton
+            class="calibration-entry"
+            size="small"
+            type="warning"
+            @click="catchErrorByMessage(startCalibration, '延迟检测')"
+        >
+            延迟检测
+        </MyButton>
     </ElHeader>
     <MyGridContainer
         :columns="2"
@@ -50,13 +58,6 @@
             @click="catchErrorByMessage(loadChart, '导入谱面')"
         >
             导入谱面（仅支持RPE格式，不支持官方谱面格式）
-        </MyButton>
-
-        <MyButton
-            type="warning"
-            @click="catchErrorByMessage(startCalibration, '延迟检测')"
-        >
-            延迟检测
         </MyButton>
     </MyGridContainer>
     <ElMenu
@@ -306,9 +307,17 @@ onBeforeUnmount(() => {
 </script>
 <style>
 .header {
+    position: relative;
     display: flex;
     justify-content: center;
     padding: 10px 0;
+}
+
+.calibration-entry {
+    position: absolute;
+    top: 10px;
+    right: 20px;
+    font-size: 12px;
 }
 
 .top-title {
