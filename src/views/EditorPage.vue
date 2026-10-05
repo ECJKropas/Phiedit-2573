@@ -493,7 +493,9 @@
                 :height="900"
             />
             <div
-                v-if="isCalibration && !calibrationResult"
+                v-if="isCalibration"
+                class="calibration-hud"
+                :class="{ 'is-fading-out': !!calibrationResult }"
                 style="position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 3000; background: rgba(20, 22, 30, 0.78); color: #fff; padding: 14px 22px; border-radius: 12px; font-size: 15px; line-height: 1.7; text-align: center; pointer-events: none; backdrop-filter: blur(6px); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);"
             >
                 <div style="font-size: 17px; font-weight: 600;">
@@ -511,10 +513,8 @@
                 v-if="isCalibration && calibrationResult"
                 class="calibration-result"
             >
-                <div class="calibration-result-top">
-                    <div class="calibration-result-label">
-                        offset
-                    </div>
+                <div class="calibration-result-center">
+                    <div class="calibration-ribbon" />
                     <div
                         v-if="calibrationResult.offsetMs !== null"
                         class="calibration-result-value"
@@ -525,10 +525,7 @@
                         v-else
                         class="calibration-result-empty"
                     >
-                        未采到有效样本
-                    </div>
-                    <div class="calibration-result-sub">
-                        有效样本 {{ calibrationResult.validCount }} / {{ calibrationResult.pressCount }} 次按键
+                        采样不足
                     </div>
                 </div>
                 <div class="calibration-result-actions">
@@ -537,7 +534,15 @@
                         title="放弃这次测出的 offset，不计入设置"
                         @click="discardCalibration"
                     >
-                        ✕
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.6"
+                            stroke-linecap="round"
+                        >
+                            <path d="M5 5 L19 19 M19 5 L5 19" />
+                        </svg>
                     </button>
                     <button
                         class="calibration-action calibration-action-confirm"
@@ -545,7 +550,16 @@
                         title="记录这次测出的 offset"
                         @click="confirmCalibration"
                     >
-                        ✓
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.6"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <path d="M4 12.5 L10 18.5 L20 6" />
+                        </svg>
                     </button>
                 </div>
             </div>
@@ -1972,6 +1986,15 @@ onMounted(() => {
 
 /* ---- 校准结果确认界面 ---- */
 
+/* 校准过程中的顶部信息块：进入结果确认界面时渐隐，而不是硬切消失 */
+.calibration-hud {
+    transition: opacity 0.5s ease;
+}
+
+.calibration-hud.is-fading-out {
+    opacity: 0;
+}
+
 .calibration-result {
     position: fixed;
     inset: 0;
@@ -1981,7 +2004,7 @@ onMounted(() => {
     align-items: center;
     justify-content: space-between;
     box-sizing: border-box;
-    padding: 7vh 6vw 9vh;
+    padding: 14vh 6vw 12vh;
     overflow: hidden;
 }
 
@@ -1999,107 +2022,135 @@ onMounted(() => {
     animation: calibration-result-rise 0.55s ease-out 0.65s both;
 }
 
-.calibration-result-top {
-    text-align: center;
-    color: #1f1f1f;
+/* 数字背后那根斜的紫色平行四边形彩条 */
+.calibration-result-center {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.calibration-result-label {
-    font-size: 24px;
-    font-weight: 600;
-    letter-spacing: 0.4em;
-    text-indent: 0.4em;
-    color: #9a9a9a;
+.calibration-ribbon {
+    position: relative;
+    width: min(62vw, 660px);
+    height: clamp(110px, 15vh, 180px);
+    border-radius: 6px;
+    transform: skewX(-20deg);
+    background: linear-gradient(100deg,
+        rgba(167, 139, 250, 0.26) 0%,
+        rgba(139, 92, 246, 0.46) 48%,
+        rgba(196, 181, 253, 0.24) 100%);
+}
+
+/* 彩条两端的高亮竖条 */
+.calibration-ribbon::before,
+.calibration-ribbon::after {
+    content: "";
+    position: absolute;
+    top: -12%;
+    bottom: -12%;
+    width: 16px;
+    border-radius: 4px;
+}
+
+.calibration-ribbon::before {
+    left: 7%;
+    background: linear-gradient(180deg, #c4b5fd, #8b5cf6);
+    box-shadow: 0 0 24px rgba(139, 92, 246, 0.7);
+}
+
+.calibration-ribbon::after {
+    right: 7%;
+    background: linear-gradient(180deg, #8b5cf6, #c4b5fd);
+    box-shadow: 0 0 24px rgba(139, 92, 246, 0.7);
+}
+
+.calibration-result-value,
+.calibration-result-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #17171a;
+    line-height: 1;
 }
 
 .calibration-result-value {
-    font-size: clamp(96px, 17vw, 240px);
+    font-size: clamp(140px, 22vw, 300px);
     font-weight: 800;
-    line-height: 1.05;
-    letter-spacing: -0.04em;
+    letter-spacing: -0.05em;
     font-variant-numeric: tabular-nums;
 }
 
 .calibration-result-unit {
-    font-size: 0.3em;
-    font-weight: 600;
+    font-size: 0.2em;
+    font-weight: 700;
     letter-spacing: 0;
-    color: #9a9a9a;
-    margin-left: 0.12em;
+    color: rgba(23, 23, 26, 0.5);
+    margin-left: 0.08em;
+    align-self: flex-end;
+    margin-bottom: 0.18em;
 }
 
 .calibration-result-empty {
-    font-size: 44px;
+    font-size: clamp(48px, 7vw, 96px);
     font-weight: 700;
-    color: #c0c4cc;
-    line-height: 2.2;
-}
-
-.calibration-result-sub {
-    margin-top: 8px;
-    font-size: 18px;
-    color: #9a9a9a;
+    color: rgba(23, 23, 26, 0.35);
 }
 
 .calibration-result-actions {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 14vw;
+    gap: clamp(90px, 20vw, 300px);
 }
 
 .calibration-action {
-    width: 104px;
-    height: 104px;
+    width: 88px;
+    height: 88px;
+    padding: 0;
     border: none;
-    border-radius: 50%;
-    font-size: 46px;
+    background: transparent;
+    color: #17171a;
     line-height: 1;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+    transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.calibration-action svg {
+    width: 100%;
+    height: 100%;
+    display: block;
 }
 
 .calibration-action:hover {
-    transform: scale(1.08);
+    transform: scale(1.1);
 }
 
 .calibration-action:active {
-    transform: scale(0.95);
-}
-
-.calibration-action-discard {
-    background: #f2f3f5;
-    color: #909399;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    transform: scale(0.94);
 }
 
 .calibration-action-discard:hover {
-    background: #fdecec;
     color: #f56c6c;
 }
 
-.calibration-action-confirm {
-    background: #67c23a;
-    color: #ffffff;
-    box-shadow: 0 8px 24px rgba(103, 194, 58, 0.4);
-}
-
 .calibration-action-confirm:hover {
-    background: #71d244;
+    color: #7c3aed;
 }
 
 .calibration-action-confirm:disabled {
-    background: #e4e7ed;
     color: #c0c4cc;
     cursor: not-allowed;
-    box-shadow: none;
 }
 
 .calibration-action-confirm:disabled:hover {
     transform: none;
+    color: #c0c4cc;
 }
 
 @keyframes calibration-fade-to-white {
