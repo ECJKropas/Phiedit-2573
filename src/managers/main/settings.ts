@@ -29,6 +29,7 @@ class SettingsManager extends Manager {
         if (!fs.existsSync(this.settingsFile)) {
             return {};
         }
+
         const text = await fs.promises.readFile(this.settingsFile, Constants.ENCODING);
         try {
             return JSON.parse(text);
