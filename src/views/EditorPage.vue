@@ -514,12 +514,16 @@
                 class="calibration-result"
             >
                 <div class="calibration-result-center">
-                    <div class="calibration-ribbon" />
+                    <div class="calibration-ribbon">
+                        <div class="calibration-ribbon-bar" />
+                        <div class="calibration-ribbon-tie calibration-ribbon-tie-left" />
+                        <div class="calibration-ribbon-tie calibration-ribbon-tie-right" />
+                    </div>
                     <div
                         v-if="calibrationResult.offsetMs !== null"
                         class="calibration-result-value"
                     >
-                        {{ calibrationResult.offsetMs }}<span class="calibration-result-unit">ms</span>
+                        {{ calibrationResult.offsetMs }}
                     </div>
                     <div
                         v-else
@@ -2022,7 +2026,7 @@ onMounted(() => {
     animation: calibration-result-rise 0.55s ease-out 0.65s both;
 }
 
-/* 数字背后那根斜的紫色平行四边形彩条 */
+/* 居中舞台：紫色彩条 + 压在其上的数字 */
 .calibration-result-center {
     position: relative;
     display: flex;
@@ -2030,10 +2034,17 @@ onMounted(() => {
     justify-content: center;
 }
 
+/* 斜的紫色彩条，下移到数字的下半部分 */
 .calibration-ribbon {
     position: relative;
-    width: min(62vw, 660px);
-    height: clamp(110px, 15vh, 180px);
+    width: min(46vw, 480px);
+    height: clamp(72px, 9vh, 120px);
+    transform: translateY(clamp(34px, 5vw, 72px));
+}
+
+.calibration-ribbon-bar {
+    position: absolute;
+    inset: 0 -7%;
     border-radius: 6px;
     transform: skewX(-20deg);
     background: linear-gradient(100deg,
@@ -2042,25 +2053,23 @@ onMounted(() => {
         rgba(196, 181, 253, 0.24) 100%);
 }
 
-/* 彩条两端的高亮竖条 */
-.calibration-ribbon::before,
-.calibration-ribbon::after {
-    content: "";
+/* 左右两条飘带：尺寸与纵向位置完全一致，只分居彩条两端 */
+.calibration-ribbon-tie {
     position: absolute;
-    top: -12%;
-    bottom: -12%;
-    width: 16px;
+    top: -20%;
+    height: 140%;
+    width: 14px;
     border-radius: 4px;
 }
 
-.calibration-ribbon::before {
-    left: 7%;
+.calibration-ribbon-tie-left {
+    left: 0;
     background: linear-gradient(180deg, #c4b5fd, #8b5cf6);
     box-shadow: 0 0 24px rgba(139, 92, 246, 0.7);
 }
 
-.calibration-ribbon::after {
-    right: 7%;
+.calibration-ribbon-tie-right {
+    right: 0;
     background: linear-gradient(180deg, #8b5cf6, #c4b5fd);
     box-shadow: 0 0 24px rgba(139, 92, 246, 0.7);
 }
@@ -2081,16 +2090,6 @@ onMounted(() => {
     font-weight: 800;
     letter-spacing: -0.05em;
     font-variant-numeric: tabular-nums;
-}
-
-.calibration-result-unit {
-    font-size: 0.2em;
-    font-weight: 700;
-    letter-spacing: 0;
-    color: rgba(23, 23, 26, 0.5);
-    margin-left: 0.08em;
-    align-self: flex-end;
-    margin-bottom: 0.18em;
 }
 
 .calibration-result-empty {
