@@ -1,3 +1,9 @@
+/**
+ * @license MIT
+ * Copyright © 2026 ECJKropas. All rights reserved.
+ * Licensed under MIT (https://opensource.org/licenses/MIT)
+ */
+
 /* eslint-disable no-magic-numbers, no-inline-comments */
 // 自动生成，勿手改。
 // 由 C6H5Li3O7_rubbish_files/rebuild_calibration_chart.py 生成。
