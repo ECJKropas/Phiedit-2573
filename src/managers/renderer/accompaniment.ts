@@ -28,6 +28,9 @@ export default class AccompanimentManager extends Manager {
     /** 进行中的长按音符（Hold）：key(按键) → 已按下但未抬起的 note，抬起时回填 endTime */
     private activeHolds: Map<string, INote> = new Map();
 
+    /** 监听音频原生 pause 事件：伴随创作中一旦暂停（含点击上方暂停按钮）即退出模式 */
+    private audioPauseHandler: (() => void) | null = null;
+
     constructor() {
         super();
         globalEventEmitter.on("ACCOMPANIMENT_TOGGLE", createCatchErrorByMessage(() => {
@@ -72,6 +75,9 @@ export default class AccompanimentManager extends Manager {
         store.setSeconds(startSeconds);
         store.playAudio();
 
+        // 监听音频暂停：伴随创作激活期间点击上方暂停（或任何导致音乐暂停的方式）即退出模式
+        this.attachAudioPauseListener();
+
         // 通过响应式代理 state 写值，确保 Vue 模板（按钮/覆盖层）会更新
         stateManager.state.accompanimentMode = true;
         stateManager.state.accompanimentListening = false;
@@ -112,6 +118,40 @@ export default class AccompanimentManager extends Manager {
         if (this.rafId !== null) {
             window.cancelAnimationFrame(this.rafId);
             this.rafId = null;
+        }
+    }
+
+    /** 绑定音频原生 pause 事件：暂停即视为退出伴随创作模式（音频已暂停，方向天然正确，且不受事件处理顺序影响） */
+    private attachAudioPauseListener() {
+        if (this.audioPauseHandler) {
+            return;
+        }
+
+        try {
+            const audio = store.useAudio();
+            this.audioPauseHandler = createCatchErrorByMessage(() => {
+                const stateManager = store.useManager("stateManager");
+                if (stateManager.state.accompanimentMode && audio.paused) {
+                    this.stop();
+                }
+            }, "伴随创作随暂停退出");
+            audio.addEventListener("pause", this.audioPauseHandler);
+        }
+        catch {
+            this.audioPauseHandler = null;
+        }
+    }
+
+    /** 解除音频 pause 监听，避免 stop() 自身 pauseAudio() 再次触发退出逻辑 */
+    private detachAudioPauseListener() {
+        if (this.audioPauseHandler) {
+            try {
+                store.useAudio().removeEventListener("pause", this.audioPauseHandler);
+            }
+            catch {
+                // 音频已不可用，忽略
+            }
+            this.audioPauseHandler = null;
         }
     }
 
@@ -216,6 +256,7 @@ export default class AccompanimentManager extends Manager {
     stop() {
         const stateManager = store.useManager("stateManager");
         this.clearRaf();
+        this.detachAudioPauseListener();
 
         // 收尾：若仍有按住未抬起的长按（如中途 ESC 退出），按当前播放位置结束之，避免残留 0 长音符
         for (const key of [...this.activeHolds.keys()]) {
