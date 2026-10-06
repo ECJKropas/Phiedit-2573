@@ -958,6 +958,10 @@ function discardCalibration() {
 }
 
 function calibrationKeyDown(e: KeyboardEvent) {
+    // 按住按键时操作系统会以 ~30Hz 持续派发 repeat 事件，若不拦截会把同一时刻的
+    // 重复值灌满采样，污染中位数。此处与 windowOnKeyDown 一致，先挡掉自动重复。
+    if (e.repeat) return;
+
     // 结果确认界面：不再采样，也不响应 ESC，是否记录由 ✕ / ✓ 决定
     if (calibrationResult.value) return;
 
