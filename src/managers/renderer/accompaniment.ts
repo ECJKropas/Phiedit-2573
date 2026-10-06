@@ -8,7 +8,7 @@
 
 import globalEventEmitter from "@/eventEmitter";
 import { NoteType, NoteFake, NoteAbove, INote } from "@/models/note";
-import { Beats, addBeats, isGreaterThanBeats, secondsToBeats } from "@/models/beats";
+import { Beats, addBeats, isGreaterThanBeats, secondsToBeats, snapBeatsToGrid } from "@/models/beats";
 import store from "@/store";
 import Manager from "./abstract";
 import { createCatchErrorByMessage } from "@/tools/catchError";
@@ -178,16 +178,6 @@ export default class AccompanimentManager extends Manager {
         return secondsToBeats(chart.BPMList, seconds);
     }
 
-    /** 把当前播放位置的拍数吸附到最近的横网格格点 */
-    private snapBeatsToGrid(beatsValue: number): Beats {
-        const stateManager = store.useManager("stateManager");
-        const intPart = Math.floor(beatsValue);
-        const decimal = beatsValue - intPart;
-        const fenzi = Math.round(decimal * stateManager.state.horizonalLineCount);
-        const fenmu = stateManager.state.horizonalLineCount;
-        return [intPart, fenzi, fenmu];
-    }
-
     placeNote(type: NoteType, key: string) {
         const stateManager = store.useManager("stateManager");
         if (!stateManager.state.accompanimentMode || !stateManager.state.accompanimentListening) {
@@ -198,7 +188,7 @@ export default class AccompanimentManager extends Manager {
         const mouseManager = store.useManager("mouseManager");
         const historyManager = store.useManager("historyManager");
 
-        const snappedBeats = this.snapBeatsToGrid(this.getLatencyAdjustedBeatsValue());
+        const snappedBeats = snapBeatsToGrid(this.getLatencyAdjustedBeatsValue(), stateManager.state.horizonalLineCount);
 
         // 横向位置：跟随鼠标并吸附到竖线，未悬停画布时落在中线
         const positionX = mouseManager.isHovering ?
@@ -268,7 +258,7 @@ export default class AccompanimentManager extends Manager {
             return;
         }
 
-        const snappedEnd = this.snapBeatsToGrid(this.getLatencyAdjustedBeatsValue());
+        const snappedEnd = snapBeatsToGrid(this.getLatencyAdjustedBeatsValue(), stateManager.state.horizonalLineCount);
         const fenmu = stateManager.state.horizonalLineCount;
         const endTime = isGreaterThanBeats(snappedEnd, note.startTime as Beats) ?
             snappedEnd :

@@ -5,9 +5,9 @@
  */
 
 import Constants from "@/constants";
-import { Beats, secondsToBeats } from "@/models/beats";
+import { Beats, secondsToBeats, snapBeatsToGrid } from "@/models/beats";
 import store from "@/store";
-import { round, floor } from "lodash";
+import { round } from "lodash";
 import Manager from "./abstract";
 
 export default class CoordinateManager extends Manager {
@@ -72,13 +72,7 @@ export default class CoordinateManager extends Manager {
     attatchY(y: number): Beats {
         const stateManager = store.useManager("stateManager");
         const beats = this.getBeatsOfRelativePositionY(y);
-
-        const int = floor(beats);
-        const decimal = beats - int;
-
-        const fenzi = round(decimal * stateManager._state.horizonalLineCount);
-        const fenmu = stateManager._state.horizonalLineCount;
-        return [int, fenzi, fenmu];
+        return snapBeatsToGrid(beats, stateManager._state.horizonalLineCount);
     }
 
     /** 把秒数转为绝对坐标 */

@@ -183,6 +183,19 @@ export function toBeats(value: number): Beats {
     return [integer, fenzi, fenmu];
 }
 
+/**
+ * 把拍数值吸附到最近的横网格格点。
+ * @param beatsValue 待吸附的拍数值
+ * @param lineCount 横线数量（即分母）；小数部分按 lineCount 等分后四舍五入
+ */
+export function snapBeatsToGrid(beatsValue: number, lineCount: number): Beats {
+    const intPart = Math.floor(beatsValue);
+    const decimal = beatsValue - intPart;
+    const fenzi = Math.round(decimal * lineCount);
+    const fenmu = lineCount;
+    return [intPart, fenzi, fenmu];
+}
+
 export function formatBeats(beats: Beats) {
     return beats[0] + ":" + beats[1] + "/" + beats[2];
 }
