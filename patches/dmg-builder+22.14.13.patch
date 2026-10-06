@@ -1,0 +1,65 @@
+diff --git a/node_modules/dmg-builder/vendor/dmgbuild/core.py b/node_modules/dmg-builder/vendor/dmgbuild/core.py
+index 7a4207e..7584f3d 100644
+--- a/node_modules/dmg-builder/vendor/dmgbuild/core.py
++++ b/node_modules/dmg-builder/vendor/dmgbuild/core.py
+@@ -4,8 +4,6 @@ from __future__ import unicode_literals
+ import os
+ import re
+ import sys
+-reload(sys)  # Reload is a hack
+-sys.setdefaultencoding('UTF8')
+ 
+ sys.path.append(os.path.normpath(os.path.join(os.path.dirname(__file__), "..")))
+ 
+diff --git a/node_modules/dmg-builder/vendor/ds_store/store.py b/node_modules/dmg-builder/vendor/ds_store/store.py
+index 93f02e0..3d7a6c9 100644
+--- a/node_modules/dmg-builder/vendor/ds_store/store.py
++++ b/node_modules/dmg-builder/vendor/ds_store/store.py
+@@ -178,13 +178,41 @@ class DSStoreEntry(object):
+                 or (sfl == ofl
+                     and self.code >= other.code))
+ 
+-    def __cmp__(self, other):
++    def __lt__(self, other):
+         if not isinstance(other, DSStoreEntry):
+-            raise TypeError('Can only compare against other DSStoreEntry objects')
+-        r = cmp(self.filename.lower(), other.filename.lower())
+-        if r:
+-            return r
+-        return cmp(self.code, other.code)
++            return NotImplemented
++        sfl = self.filename.lower()
++        ofl = other.filename.lower()
++        if sfl != ofl:
++            return sfl < ofl
++        selfCode = self.code
++        if str != bytes and type(selfCode) is bytes:
++            selfCode = selfCode.decode('utf-8')
++        otherCode = other.code
++        if str != bytes and type(otherCode) is bytes:
++            otherCode = otherCode.decode('utf-8')
++        return selfCode < otherCode
++
++    def __eq__(self, other):
++        if not isinstance(other, DSStoreEntry):
++            return NotImplemented
++        sfl = self.filename.lower()
++        ofl = other.filename.lower()
++        if sfl != ofl:
++            return False
++        selfCode = self.code
++        if str != bytes and type(selfCode) is bytes:
++            selfCode = selfCode.decode('utf-8')
++        otherCode = other.code
++        if str != bytes and type(otherCode) is bytes:
++            otherCode = otherCode.decode('utf-8')
++        return selfCode == otherCode
++
++    def __ne__(self, other):
++        result = self.__eq__(other)
++        if result is NotImplemented:
++            return result
++        return not result
+     
+     def byte_length(self):
+         """Compute the length of this entry, in bytes"""
