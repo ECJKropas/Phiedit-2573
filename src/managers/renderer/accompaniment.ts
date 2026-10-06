@@ -83,6 +83,10 @@ export default class AccompanimentManager extends Manager {
         stateManager.state.accompanimentListening = false;
         stateManager.state.accompanimentCountdown = COUNTDOWN_SECONDS;
 
+        // 伴随创作是「边听边写」模式：播放头推进、但判定应关闭，Q/W/E/R 仅用于落音符。
+        // 显式置 true，确保即使在试玩（autoplay=false）中途进入伴随创作，放置也能生效且不与判定冲突。
+        stateManager.state.autoplay = true;
+
         this.beginWatch();
     }
 

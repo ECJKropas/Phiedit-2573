@@ -87,12 +87,32 @@ class ImportChartManager extends Manager {
 
         const buf = await fs.promises.readFile(pezPath);
         const jszip = await JSZip.loadAsync(buf);
-        fs.mkdirSync(dir, { recursive: true });
-        for (const name of Object.keys(jszip.files)) {
-            const file = jszip.files[name];
-            if (file.dir) continue;
-            const data = await file.async("uint8array");
-            await fs.promises.writeFile(path.join(dir, name), data);
+
+        // 解包到临时目录，全部写完后原子重命名：避免中途失败（断电/退出）留下半成品目录，
+        // 之后因「目录已存在」被永久跳过。若上次崩溃残留临时目录，先清理。
+        const tmpDir = `${dir}.extracting`;
+        if (fs.existsSync(tmpDir)) {
+            await fs.promises.rm(tmpDir, { recursive: true, force: true });
+        }
+        fs.mkdirSync(tmpDir, { recursive: true });
+        try {
+            for (const name of Object.keys(jszip.files)) {
+                const file = jszip.files[name];
+                if (file.dir) continue;
+
+                // 防御 zip-slip：拒绝任何会逃出解包根目录的条目
+                if (name.startsWith("/") || name.startsWith("\\") || name.includes("..")) continue;
+                const data = await file.async("uint8array");
+                await fs.promises.writeFile(path.join(tmpDir, name), data);
+            }
+
+            // 同文件系统内 rename 为原子操作：写完再切换，保证「目录存在」即「解包完成」
+            await fs.promises.rename(tmpDir, dir);
+        }
+        catch (err) {
+            // 失败清理临时目录，下次调用可自愈
+            await fs.promises.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
+            throw err;
         }
 
         // 注意：不加入 chartList，保持隐藏

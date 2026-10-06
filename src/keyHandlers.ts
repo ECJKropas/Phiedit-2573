@@ -122,7 +122,9 @@ export default function getKeyHandler(e: KeyboardEvent, type: "keydown" | "keyup
 
     // 伴随创作模式监听中：Q/W/E/R 直接放置对应类型 note，而非切换类型。
     // 非 Hold 类型按下即放置；Hold（R）类型按下为开始、抬起为结束（见 ACCOMPANIMENT_END_HOLD）
-    if (stateManager._state.accompanimentListening) {
+    // 仅在播放（autoplay）期间生效：试玩（playChart 把 autoplay 置为 false 开启判定）时不再放置，
+    // 避免一次按键既落音符又被判定（QWER 分支此前在下方 autoplay 门控之前提前 return，绕过了该门控）。
+    if (stateManager._state.accompanimentListening && stateManager._state.autoplay) {
         const accompanimentTypeMap: Record<string, NoteType> = {
             Q: NoteType.Tap,
             W: NoteType.Drag,

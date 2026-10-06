@@ -7,6 +7,8 @@
 import globalEventEmitter from "@/eventEmitter";
 import { eventAttributes, IEvent } from "@/models/event";
 import { INote, noteAttributes } from "@/models/note";
+import { BPM } from "@/models/beats";
+import { Chart } from "@/models/chart";
 import store from "@/store";
 import { createCatchErrorByMessage } from "@/tools/catchError";
 import Manager from "./abstract";
@@ -100,6 +102,10 @@ export default class HistoryManager extends Manager {
     }
     recordRemoveEvent(eventObject: IEvent<unknown>, eventType: string, eventLayerId: string, judgeLineNumber: number, id: string) {
         const record = new RemoveEventRecord(eventObject, eventType, eventLayerId, judgeLineNumber, id);
+        this.addRecord(record);
+    }
+    recordModifyBPM(chart: Chart, bpm: BPM, newValue: number, oldValue?: number) {
+        const record = new ModifyBPMRecord(chart, bpm, newValue, oldValue);
         this.addRecord(record);
     }
 
@@ -365,6 +371,29 @@ class RemoveEventRecord extends HistoryRecord {
     }
     getDescription() {
         return `删除事件 ${this.id}`;
+    }
+}
+
+class ModifyBPMRecord extends HistoryRecord {
+    readonly type = "modifyBPM";
+    constructor(private chart: Chart, private bpm: BPM, private newValue: number, private oldValue?: number) {
+        super();
+        this.oldValue = oldValue ?? bpm.bpm;
+    }
+    redo() {
+        super.redo();
+        this.bpm.bpm = this.newValue;
+
+        // BPM 变化会改变所有音符/事件的绝对秒数，重算保证撤销/重做后缓存一致
+        this.chart.calculateSeconds();
+    }
+    undo() {
+        super.undo();
+        this.bpm.bpm = this.oldValue!;
+        this.chart.calculateSeconds();
+    }
+    getDescription() {
+        return `将 BPM 从 ${this.oldValue} 改为 ${this.newValue}`;
     }
 }
 

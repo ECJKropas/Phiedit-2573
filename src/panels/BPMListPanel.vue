@@ -99,7 +99,7 @@
 </template>
 <script setup lang="ts">
 import { ElCheckbox, ElDialog, ElRadio, ElRadioGroup, ElRow } from "element-plus";
-import { beatsCompare, beatsToSeconds, BPM, secondsToBeats, toBeats } from "../models/beats";
+import { beatsCompare, beatsToSeconds, Beats, BPM, secondsToBeats, toBeats } from "../models/beats";
 import MyButton from "@/myElements/MyButton.vue";
 import MyInputBeats from "@/myElements/MyInputBeats.vue";
 import MyInputNumber from "../myElements/MyInputNumber.vue";
@@ -176,16 +176,54 @@ function applyBpmMode(mode: "relative" | "absolute", oldVal: number, index: numb
         return;
     }
 
-    // 绝对位置：保持每个音符相对于 0:00 的绝对时间不变
-    // 用改动前的 bpm 重建该段的 BPMList，反算每个音符当前的绝对秒数
+    // 绝对位置：保持每个音符、每个判定线事件相对于 0:00 的绝对时间不变
+    // 用改动前的 bpm 重建该段的 BPMList，反算每个元素当前的绝对秒数，
+    // 再按新 BPMList 换算回拍数。这样音符与事件/音频都不会脱节。
+    const newBpmValue = c.BPMList[index].bpm;
+    if (oldVal === newBpmValue) {
+        // BPM 实际未变化，重定位无意义，跳过以免向历史栈写入空操作
+        c.calculateSeconds();
+        return;
+    }
+
     const oldBPMList = c.BPMList.map((b, i) =>
         new BPM(i === index ? { bpm: oldVal, startTime: b.startTime } : { bpm: b.bpm, startTime: b.startTime }));
     const newBPMList = c.BPMList;
-    for (const note of c.getAllNotes()) {
-        const startSeconds = beatsToSeconds(oldBPMList, note.startTime);
-        note._startTime = toBeats(secondsToBeats(newBPMList, startSeconds));
-        const endSeconds = beatsToSeconds(oldBPMList, note.endTime);
-        note._endTime = toBeats(secondsToBeats(newBPMList, endSeconds));
+    const historyManager = store.useManager("historyManager");
+
+    // 整体作为一个历史分组，可一次 Ctrl+Z 回滚（含 BPM 值与所有音符/事件重定位）。
+    // BPM 改动记录最先入组：撤销时它最后生效（BPM 先回退为旧值），音符/事件回退到旧拍数后用旧 BPM 重算秒数自洽；
+    // 重做时它最先生效（BPM 先设为新值），音符/事件应用新拍数后用新 BPM 重算秒数自洽。
+    historyManager.group("BPM 保持绝对位置重定位");
+    try {
+        historyManager.recordModifyBPM(c, c.BPMList[index], newBpmValue, oldVal);
+
+        for (const note of c.getAllNotes()) {
+            const oldStart: Beats = [...note.startTime];
+            const newStart = toBeats(secondsToBeats(newBPMList, beatsToSeconds(oldBPMList, oldStart)));
+            note.startTime = newStart;
+            historyManager.recordModifyNote(note.id, "startTime", newStart, oldStart);
+
+            const oldEnd: Beats = [...note.endTime];
+            const newEnd = toBeats(secondsToBeats(newBPMList, beatsToSeconds(oldBPMList, oldEnd)));
+            note.endTime = newEnd;
+            historyManager.recordModifyNote(note.id, "endTime", newEnd, oldEnd);
+        }
+
+        for (const event of c.getAllEvents()) {
+            const oldStart: Beats = [...event.startTime];
+            const newStart = toBeats(secondsToBeats(newBPMList, beatsToSeconds(oldBPMList, oldStart)));
+            event.startTime = newStart;
+            historyManager.recordModifyEvent(event.id, "startTime", newStart, oldStart);
+
+            const oldEnd: Beats = [...event.endTime];
+            const newEnd = toBeats(secondsToBeats(newBPMList, beatsToSeconds(oldBPMList, oldEnd)));
+            event.endTime = newEnd;
+            historyManager.recordModifyEvent(event.id, "endTime", newEnd, oldEnd);
+        }
+    }
+    finally {
+        historyManager.ungroup();
     }
     c.calculateSeconds();
 }
