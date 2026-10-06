@@ -78,5 +78,6 @@ export const DEFAULT_TIPS = [
     "Tip: 你知道吗？Phiedit 2573有一个隐藏图标！你只要编译了，找到\\dist_electron\\bundled\\favicon.ico就能看到！",
     "Tip: UK是Unknown不是英国！",
     "Tip: Modified by @C6H5Li3O7 !",
+    "Tip: 伴随创作前，请先延迟检测哦！",
     "//你看不见我"
 ].join("\n");

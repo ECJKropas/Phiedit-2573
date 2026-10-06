@@ -25,8 +25,11 @@ pnpm-debug.log*
 # Electron-builder output
 /dist_electron
 
-/C6H5Li3O7_rubbish_files
 /.workbuddy
+
+# 开发/升级辅助脚本的二进制资产（不进仓库；与 pez 内歌曲重复，避免体积膨胀）
+/tools/calibration/assets/
+/tools/calibration/_archive/
 
 # Python 提取脚本相关 (venv 已在 .workbuddy 内被忽略)
 __pycache__/
